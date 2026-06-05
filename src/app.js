@@ -113,12 +113,21 @@ export function createApp() {
                 const bodies = item.error
                     ? ['生成失败，点开查看']
                     : extractPushBodies(item.content);
+                const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+                let i = 0;
                 for (const body of bodies) {
+                    // 逐条之间加真人节奏延迟（按字数估打字时长），第一条立即发。
+                    // ⚠️ Cloudflare Workers waitUntil 有时长上限，单条延迟封顶 + 总条数防超时。
+                    if (i > 0) {
+                        const delay = Math.min(4000, 600 + (body?.length || 0) * 120);
+                        await sleep(delay);
+                    }
                     const payload = { title, body, charId: item.charId, userId: item.userId, kind: 'relay-outbox' };
                     for (const s of subs) {
                         const res = await dispatchPush(c.env, s, payload);
                         if (res?.gone) await sub.remove(inboxId, s);
                     }
+                    i++;
                 }
             } catch (e) {
                 console.warn('[generate] push failed:', e?.message);
